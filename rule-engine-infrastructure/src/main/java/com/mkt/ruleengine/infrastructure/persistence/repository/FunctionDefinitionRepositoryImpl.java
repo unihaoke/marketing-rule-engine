@@ -77,6 +77,8 @@ public class FunctionDefinitionRepositoryImpl implements FunctionDefinitionRepos
         po.setDisplayName(d.getDisplayName());
         po.setType(d.getType() == null ? null : d.getType().name());
         po.setDescription(d.getDescription());
+        po.setOutput(d.getOutput());
+        po.setOutputName(d.getOutputName());
         po.setClassName(d.getClassName());
         po.setJarPath(d.getJarPath());
         po.setScript(d.getScript());
@@ -96,6 +98,8 @@ public class FunctionDefinitionRepositoryImpl implements FunctionDefinitionRepos
         d.setDisplayName(po.getDisplayName());
         d.setType(po.getType() == null ? null : FunctionType.valueOf(po.getType()));
         d.setDescription(po.getDescription());
+        d.setOutput(po.getOutput());
+        d.setOutputName(po.getOutputName());
         d.setClassName(po.getClassName());
         d.setJarPath(po.getJarPath());
         d.setScript(po.getScript());

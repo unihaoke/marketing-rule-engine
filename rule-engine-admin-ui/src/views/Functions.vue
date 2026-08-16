@@ -52,6 +52,8 @@ function emptyForm() {
     displayName: '',
     type: 'EXPRESSION',
     description: '',
+    output: '',
+    outputName: '',
     className: '',
     script: '',
     params: [],
@@ -95,6 +97,8 @@ function openEdit(row) {
     displayName: row.displayName || '',
     type: row.type || 'EXPRESSION',
     description: row.description || '',
+    output: row.output || '',
+    outputName: row.outputName || '',
     className: row.className || '',
     script: row.script || '',
     params: (row.params || []).map((p) => ({ ...p })),
@@ -142,6 +146,8 @@ async function save() {
     displayName: form.value.displayName,
     type: form.value.type,
     description: form.value.description,
+    output: form.value.output,
+    outputName: form.value.outputName,
     className: form.value.type === 'EXPRESSION' ? '' : form.value.className,
     script: form.value.type === 'EXPRESSION' ? form.value.script : '',
     params: form.value.params,
@@ -356,6 +362,9 @@ onMounted(load)
         </template>
       </el-table-column>
       <el-table-column prop="description" label="描述" min-width="180" show-overflow-tooltip />
+      <el-table-column label="出参名" width="130">
+        <template #default="{ row }">{{ row.outputName || row.functionName }}</template>
+      </el-table-column>
       <el-table-column label="版本" width="70" align="center">
         <template #default="{ row }">{{ row.version ?? 1 }}</template>
       </el-table-column>
@@ -408,6 +417,21 @@ onMounted(load)
       <el-form-item label="描述">
         <el-input v-model="form.description" type="textarea" :rows="2" placeholder="函数说明" />
       </el-form-item>
+      <el-form-item label="出参说明">
+        <el-input
+          v-model="form.output"
+          type="textarea"
+          :rows="2"
+          placeholder="函数结果说明，如 返回档位奖励值（数字）；画布中展示给运营"
+        />
+      </el-form-item>
+      <el-form-item label="出参名">
+        <el-input
+          v-model="form.outputName"
+          placeholder="规则画布中的固定出参名（不可改），缺省=函数名；如 rewardPoints"
+        />
+        <div class="form-tip">画布中函数结果写入该名称，条件/动作引用 #{出参名}；请使用英文标识符</div>
+      </el-form-item>
       <el-form-item :label="form.type === 'EXPRESSION' ? '脚本内容' : '实现类'">
         <el-input
           v-if="form.type !== 'EXPRESSION'"
@@ -424,8 +448,9 @@ onMounted(load)
       </el-form-item>
       <el-form-item label="入参定义">
         <div style="width: 100%">
-          <ParamSchemaEditor v-model="form.params" />
+          <ParamSchemaEditor v-model="form.params" with-editable />
         </div>
+        <div class="form-tip" style="margin-top: 4px">「画布可填」关闭的参数不在规则画布中展示赋值（由函数内部/默认值决定）</div>
       </el-form-item>
       <el-form-item label="config">
         <el-input v-model="form.configText" type="textarea" :rows="2" class="mono" placeholder='扩展配置 JSON，如 {"tiers": [{"min": 100, "rate": 0.1}]}' />
@@ -434,7 +459,7 @@ onMounted(load)
         <el-input
           v-model="form.testCasesText"
           type="textarea"
-          :rows="3"
+          :rows="8"
           class="mono"
           placeholder='案例数组 JSON，如 [{"name":"案例名","eventParams":{},"bindings":{},"expect":"预期说明"}]'
         />
@@ -512,7 +537,7 @@ onMounted(load)
         <el-input
           v-model="testForm.eventParamsText"
           type="textarea"
-          :rows="3"
+          :rows="7"
           class="mono"
           placeholder='事件参数 JSON，如 {"orderCount": 5, "userId": "u1001"}'
         />
@@ -521,7 +546,7 @@ onMounted(load)
         <el-input
           v-model="testForm.bindingsText"
           type="textarea"
-          :rows="3"
+          :rows="7"
           class="mono"
           placeholder='绑定参数 JSON，如 {"tiers": [{"min": 100, "rate": 0.1}]}'
         />

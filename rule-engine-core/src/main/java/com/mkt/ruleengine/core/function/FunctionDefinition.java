@@ -23,6 +23,12 @@ public class FunctionDefinition {
     /** 函数描述 */
     private String description;
 
+    /** 出参说明（函数结果的含义/类型，画布中展示给运营） */
+    private String output;
+
+    /** 默认出参名（规则画布中的固定别名，不可修改；缺省等于函数名） */
+    private String outputName;
+
     /** Jar 类型：实现类的全限定名；EXPRESSION 类型：脚本内容；JAVA_SPI：Bean 名或类名 */
     private String className;
 
@@ -84,6 +90,22 @@ public class FunctionDefinition {
 
     public void setDescription(String description) {
         this.description = description;
+    }
+
+    public String getOutput() {
+        return output;
+    }
+
+    public void setOutput(String output) {
+        this.output = output;
+    }
+
+    public String getOutputName() {
+        return outputName;
+    }
+
+    public void setOutputName(String outputName) {
+        this.outputName = outputName;
     }
 
     public String getClassName() {

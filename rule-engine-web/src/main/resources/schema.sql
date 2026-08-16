@@ -51,6 +51,8 @@ CREATE TABLE IF NOT EXISTS t_function_definition (
     display_name  VARCHAR(128),
     type          VARCHAR(16)  NOT NULL,
     description   VARCHAR(512),
+    output        VARCHAR(512) COMMENT '出参说明（函数结果含义，画布展示）',
+    output_name   VARCHAR(64) COMMENT '默认出参名（规则画布固定别名，缺省=函数名）',
     class_name    VARCHAR(256),
     jar_path      VARCHAR(512),
     script        TEXT,

@@ -103,18 +103,22 @@ public class FunctionAppService {
 
     /**
      * 在线测试函数：以示例事件参数 + 绑定参数执行。
+     * <p>绑定参数可携带 {@code eventCode} 指定事件编码（默认 functionName-test），
+     * 使 signInDays / todaySignedIn 等基于 t_engine_log 的函数在测试时可按真实事件语义计算。</p>
      */
     public Object testRun(String functionName, Map<String, Object> eventParams, Map<String, Object> bindings) {
         MarketingFunction fn = registry.get(functionName)
                 .orElseThrow(() -> new RuleConfigException("function not loaded: " + functionName));
         FunctionDefinition def = get(functionName);
+        Map<String, Object> b = bindings == null ? Map.of() : bindings;
+        String eventCode = b.get("eventCode") == null ? functionName + "-test" : String.valueOf(b.get("eventCode"));
         com.mkt.ruleengine.core.event.MarketingEvent event = new com.mkt.ruleengine.core.event.MarketingEvent(
-                functionName + "-test", "test-user", "test-channel",
+                eventCode, "test-user", "test-channel",
                 System.currentTimeMillis(), eventParams == null ? Map.of() : eventParams);
         FunctionContext ctx = new FunctionContext(event, new java.util.LinkedHashMap<>(),
-                bindings == null ? Map.of() : bindings, Map.of());
+                b, Map.of());
         // 绑定参数写入属性，脚本可引用
-        ctx.getAttributes().putAll(bindings == null ? Map.of() : bindings);
+        ctx.getAttributes().putAll(b);
         return fn.evaluate(ctx);
     }
 

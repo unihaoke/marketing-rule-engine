@@ -81,7 +81,9 @@ const fields = computed(() => {
   push('channelId', '渠道ID', 'STRING')
   push('eventCode', '事件编码', 'STRING')
   eventParams.value.forEach((p) => push(p.code, p.name || p.code, p.type))
-  functions.value.forEach((f) => push(f.alias || f.functionName, `函数:${f.functionName}`, 'STRING'))
+  functions.value.forEach((f) =>
+    push(functionDef(f)?.outputName || f.functionName, `函数:${f.functionName}`, 'STRING')
+  )
   return list
 })
 
@@ -110,6 +112,8 @@ onMounted(async () => {
   // 加载注册中心（失败仅提示，不影响画布使用）
   try {
     functionOptions.value = (await listFunctions()) || []
+    // 函数定义就绪后，同步"画布不可填"参数的既有值（加载旧规则时保留）
+    functions.value.forEach(syncFixedBindings)
   } catch (e) {
     ElMessage.warning(`函数注册中心加载失败：${e.message}`)
   }
@@ -132,11 +136,15 @@ function applyRule(data) {
     enabled: data.enabled !== false
   }
   conditionTree.value = hydrateTree(data.conditionTree) || defaultTree()
-  functions.value = (data.functions || []).map((f) => ({
-    functionName: f.functionName,
-    alias: f.alias || f.functionName,
-    bindingsText: toJsonText(f.bindings)
-  }))
+  functions.value = (data.functions || []).map((f) => {
+    const item = {
+      functionName: f.functionName,
+      bindingsText: toJsonText(f.bindings),
+      fixedBindings: {}
+    }
+    ensureJsonState(item)
+    return item
+  })
   actions.value = (data.actions || []).map((a) => ({
     actionCode: a.actionCode,
     async: a.async !== false,
@@ -192,11 +200,29 @@ function validateStep(step) {
       return false
     }
     for (const f of functions.value) {
+      let parsed = {}
       try {
-        parseJsonText(f.bindingsText, {})
+        parsed = parseJsonText(f.bindingsText, {})
       } catch (e) {
         ElMessage.error(`函数「${f.functionName}」的绑定参数 JSON 格式错误`)
         return false
+      }
+      // 函数管理定义的"画布可填且必填"参数必须赋值
+      const def = findFunctionDef(f.functionName)
+      if (def && Array.isArray(def.params)) {
+        for (const p of def.params) {
+          if (p.editable === false || !p.required) continue
+          const v = parsed[p.code]
+          const empty =
+            v === undefined ||
+            v === null ||
+            (typeof v === 'string' && !v.trim()) ||
+            (Array.isArray(v) && !v.length)
+          if (empty) {
+            ElMessage.error(`函数「${f.functionName}」的必填参数「${p.name || p.code}」未填写`)
+            return false
+          }
+        }
       }
     }
     return true
@@ -269,13 +295,156 @@ function onActionsZoneDrop(e) {
 }
 
 // ---------------- 函数 / 动作 ----------------
+function findFunctionDef(name) {
+  return functionOptions.value.find((d) => d.functionName === name) || null
+}
+
+/** 模板内取函数定义（描述/参数 schema/案例） */
+function functionDef(f) {
+  return findFunctionDef(f.functionName)
+}
+
+/** 解析函数绑定参数 JSON（非法时返回空对象） */
+function parseBindings(f) {
+  try {
+    return parseJsonText(f.bindingsText, {})
+  } catch (e) {
+    return {}
+  }
+}
+
+function ensureJsonState(f) {
+  if (!f.jsonBindingTexts) f.jsonBindingTexts = {}
+}
+
+/** 绑定参数行：由函数定义 params schema 生成，值来自当前 bindings JSON（单一数据源） */
+function bindingRows(f) {
+  const def = findFunctionDef(f.functionName)
+  if (!def || !Array.isArray(def.params) || !def.params.length) return []
+  const parsed = parseBindings(f)
+  return def.params
+    .filter((p) => p.editable !== false)
+    .map((p) => {
+      const row = { ...p }
+      if (p.type === 'JSON') {
+        row.jsonText = f.jsonBindingTexts?.[p.code] ?? (parsed[p.code] !== undefined ? toJsonText(parsed[p.code]) : '')
+      } else {
+        row.value = parsed[p.code] !== undefined ? parsed[p.code] : p.type === 'NUMBER' ? null : ''
+      }
+      return row
+    })
+}
+
+/** 该函数是否走结构化绑定参数行（函数定义了"画布可填"参数 schema） */
+function structuredBindings(f) {
+  const def = findFunctionDef(f.functionName)
+  return !!(def && Array.isArray(def.params) && def.params.some((p) => p.editable !== false))
+}
+
+/** 从加载的绑定参数中提取"画布不可填"参数的既有值，保存时合并保留（画布不展示但函数需要） */
+function syncFixedBindings(f) {
+  const def = findFunctionDef(f.functionName)
+  if (!def || !Array.isArray(def.params)) return
+  const parsed = parseBindings(f)
+  if (!f.fixedBindings) f.fixedBindings = {}
+  def.params
+    .filter((p) => p.editable === false)
+    .forEach((p) => {
+      if (parsed[p.code] !== undefined) f.fixedBindings[p.code] = parsed[p.code]
+    })
+}
+
+/** 组装最终绑定参数：画布可填参数（bindingsText）+ 固定参数（fixedBindings） */
+function buildBindings(f) {
+  const parsed = parseBindings(f)
+  const def = findFunctionDef(f.functionName)
+  if (def && Array.isArray(def.params)) {
+    def.params
+      .filter((p) => p.editable === false)
+      .forEach((p) => {
+        if (f.fixedBindings && f.fixedBindings[p.code] !== undefined) {
+          parsed[p.code] = f.fixedBindings[p.code]
+        }
+      })
+  }
+  return parsed
+}
+
+function setBindingValue(f, row, value) {
+  const parsed = parseBindings(f)
+  if (value === '' || value === null || value === undefined) delete parsed[row.code]
+  else parsed[row.code] = value
+  f.bindingsText = toJsonText(parsed)
+}
+
+function setBindingJsonText(f, row, text) {
+  ensureJsonState(f)
+  const parsed = parseBindings(f)
+  if (String(text).trim() === '') {
+    delete parsed[row.code]
+    f.jsonBindingTexts[row.code] = ''
+    f.bindingsText = toJsonText(parsed)
+    return
+  }
+  try {
+    parsed[row.code] = JSON.parse(text)
+    f.jsonBindingTexts[row.code] = text
+    f.bindingsText = toJsonText(parsed)
+  } catch (e) {
+    ElMessage.error(`「${row.name || row.code}」JSON 格式错误，未保存，请修正`)
+  }
+}
+
+function writeBindings(f, parsed) {
+  f.bindingsText = toJsonText(parsed)
+}
+
+/** 对象数组参数（LIST_OBJECT）：当前已填行 */
+function objRows(f, row) {
+  const parsed = parseBindings(f)
+  const arr = parsed[row.code]
+  return Array.isArray(arr) ? arr : []
+}
+
+/** 新增一行空对象（按 itemSchema 子字段填写） */
+function addObjRow(f, row) {
+  const parsed = parseBindings(f)
+  const arr = Array.isArray(parsed[row.code]) ? parsed[row.code] : []
+  arr.push({})
+  parsed[row.code] = arr
+  writeBindings(f, parsed)
+}
+
+/** 更新对象数组某一行的子字段值 */
+function setObjValue(f, row, idx, sub, value) {
+  const parsed = parseBindings(f)
+  const arr = Array.isArray(parsed[row.code]) ? parsed[row.code] : []
+  const item = arr[idx] || {}
+  if (value === '' || value === null || value === undefined) delete item[sub.code]
+  else item[sub.code] = value
+  parsed[row.code] = arr
+  writeBindings(f, parsed)
+}
+
+/** 删除对象数组某一行 */
+function removeObjRow(f, row, idx) {
+  const parsed = parseBindings(f)
+  const arr = Array.isArray(parsed[row.code]) ? parsed[row.code] : []
+  arr.splice(idx, 1)
+  if (arr.length) parsed[row.code] = arr
+  else delete parsed[row.code]
+  writeBindings(f, parsed)
+}
+
 function addFunction(name) {
   if (!name) return
   if (functions.value.some((f) => f.functionName === name)) {
     ElMessage.warning(`函数「${name}」已添加`)
     return
   }
-  functions.value.push({ functionName: name, alias: name, bindingsText: '{}' })
+  const f = { functionName: name, bindingsText: '{}', fixedBindings: {} }
+  ensureJsonState(f)
+  functions.value.push(f)
 }
 
 function removeFunction(i) {
@@ -325,8 +494,8 @@ async function save() {
     conditionTree: tree,
     functions: functions.value.map((f) => ({
       functionName: f.functionName,
-      alias: f.alias || f.functionName,
-      bindings: parseJsonText(f.bindingsText, {})
+      alias: functionDef(f)?.outputName || f.functionName,
+      bindings: buildBindings(f)
     })),
     actions: actions.value.map((a) => {
       let params = a.params || {}
@@ -537,19 +706,126 @@ async function resetTree() {
             <div v-for="(f, i) in functions" :key="i" class="fn-item">
               <div class="fn-head">
                 <el-tag size="small" type="success" effect="plain">{{ f.functionName }}</el-tag>
+                <span v-if="functionDef(f)?.displayName" class="fn-display">{{ functionDef(f).displayName }}</span>
                 <el-button size="small" type="danger" link @click="removeFunction(i)">删除</el-button>
               </div>
+              <!-- 函数描述：说明函数做什么、读取哪些入参 -->
+              <div v-if="functionDef(f)?.description" class="fn-desc" :title="functionDef(f).description">
+                {{ functionDef(f).description }}
+              </div>
+              <!-- 出参说明：函数定义时确定的出参类型/含义 -->
+              <div v-if="functionDef(f)?.output" class="fn-output">出参：{{ functionDef(f).output }}</div>
               <div class="fn-row">
-                <span class="fn-label">别名</span>
-                <el-input v-model="f.alias" size="small" placeholder="结果写入的属性名" />
+                <span class="fn-label">出参名</span>
+                <el-input
+                  :model-value="functionDef(f)?.outputName || f.functionName"
+                  size="small"
+                  disabled
+                  placeholder="函数定义中确定的出参名，不可修改"
+                />
+              </div>
+              <div class="fn-tip-line">
+                结果写入「{{ functionDef(f)?.outputName || f.functionName }}」，可在条件与动作参数（{{ '#' + '{' + (functionDef(f)?.outputName || f.functionName) + '}' }}）中引用
               </div>
               <div class="fn-row fn-row-bindings">
                 <span class="fn-label">绑定参数</span>
-                <JsonTextarea
-                  v-model="f.bindingsText"
-                  :rows="6"
-                  placeholder='绑定参数 JSON，如阶梯档位：{"keyField":"checkinStreak","tiers":[{"key":1,"value":1},{"key":2,"value":2},{"key":3,"value":4}]}'
-                />
+                <div class="fn-bindings-body">
+                  <!-- 结构化绑定参数行：按函数定义 params schema 渲染 -->
+                  <template v-if="structuredBindings(f)">
+                    <div v-for="row in bindingRows(f)" :key="row.code" class="fn-bind-row">
+                      <div class="fn-bind-head">
+                        <span class="fn-bind-name" :title="row.description || row.code">
+                          {{ row.name || row.code }}<i v-if="row.required" class="req-star">*</i>
+                        </span>
+                        <span class="fn-bind-code">{{ row.code }}</span>
+                      </div>
+                      <el-input-number
+                        v-if="row.type === 'NUMBER'"
+                        :model-value="row.value"
+                        size="small"
+                        :controls="false"
+                        style="width: 100%"
+                        @change="(v) => setBindingValue(f, row, v)"
+                        :placeholder="row.description"
+                      />
+                      <el-switch
+                        v-else-if="row.type === 'BOOLEAN'"
+                        :model-value="!!row.value"
+                        @change="(v) => setBindingValue(f, row, v)"
+                      />
+                      <el-input
+                        v-else-if="row.type === 'JSON'"
+                        :model-value="row.jsonText"
+                        type="textarea"
+                        :rows="4"
+                        size="small"
+                        class="mono"
+                        @change="(v) => setBindingJsonText(f, row, v)"
+                        :placeholder='row.description || "JSON 数组 / 对象，如 [{\"key\":1,\"value\":1}]"'
+                      />
+                      <el-input
+                        v-else-if="row.type === 'USER'"
+                        :model-value="row.value"
+                        size="small"
+                        @change="(v) => setBindingValue(f, row, v)"
+                        :placeholder="(row.description ? row.description + '；' : '') + '用户ID，如 u1001 或 ${userId}'"
+                      />
+                      <!-- 对象数组（list[obj]）：按子字段格式新增/填写 -->
+                      <div v-else-if="row.type === 'LIST_OBJECT'" class="fn-obj-editor">
+                        <template v-if="(row.itemSchema || []).length">
+                          <div v-for="(item, idx) in objRows(f, row)" :key="idx" class="fn-obj-row">
+                            <div class="fn-obj-row-head">
+                              <span class="fn-obj-row-title">第 {{ idx + 1 }} 行</span>
+                              <el-button size="small" type="danger" link @click="removeObjRow(f, row, idx)">删除</el-button>
+                            </div>
+                            <div class="fn-obj-cells">
+                              <div v-for="sub in row.itemSchema" :key="sub.code" class="fn-obj-cell">
+                                <div class="fn-obj-cell-label">
+                                  {{ sub.name || sub.code }}<i v-if="sub.required" class="req-star">*</i>
+                                </div>
+                                <el-input-number
+                                  v-if="sub.type === 'NUMBER'"
+                                  :model-value="item[sub.code] ?? null"
+                                  size="small"
+                                  :controls="false"
+                                  style="width: 100%"
+                                  @change="(v) => setObjValue(f, row, idx, sub, v)"
+                                  :placeholder="sub.description"
+                                />
+                                <el-input
+                                  v-else
+                                  :model-value="item[sub.code] ?? ''"
+                                  size="small"
+                                  @change="(v) => setObjValue(f, row, idx, sub, v)"
+                                  :placeholder="sub.description || sub.code"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                          <div v-if="!objRows(f, row).length" class="fn-obj-empty">尚未添加，点击下方按钮按格式新增</div>
+                          <el-button size="small" plain style="margin-top: 6px" @click="addObjRow(f, row)">
+                            <el-icon style="margin-right: 4px"><Plus /></el-icon>添加{{ row.name || row.code }}
+                          </el-button>
+                        </template>
+                        <div v-else class="fn-obj-empty">该参数为对象数组，但函数未定义子字段格式，可在函数管理中补充</div>
+                      </div>
+                      <el-input
+                        v-else
+                        :model-value="row.value"
+                        size="small"
+                        @change="(v) => setBindingValue(f, row, v)"
+                        :placeholder="row.description"
+                      />
+                    </div>
+                  </template>
+                  <!-- 函数未定义可填参数 schema 时的兜底 JSON 编辑 -->
+                  <JsonTextarea
+                    v-else
+                    v-model="f.bindingsText"
+                    :rows="6"
+                    placeholder='绑定参数 JSON，如阶梯档位：{"keyField":"checkinStreak","tiers":[{"key":1,"value":1}]}'
+                  />
+                </div>
               </div>
             </div>
             <div v-if="!functions.length" class="drop-hint">从左侧面板点击或拖拽函数添加</div>
@@ -994,6 +1270,129 @@ async function resetTree() {
   color: #606266;
   line-height: 28px;
   flex-shrink: 0;
+}
+
+/* ---------- 函数卡片增强：描述 / 出参提示 / 结构化绑定参数 / 示例 ---------- */
+.fn-display {
+  flex: 1;
+  font-size: 12px;
+  color: #909399;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fn-desc {
+  font-size: 12px;
+  color: #606266;
+  background: #f5f7fa;
+  border-radius: 4px;
+  padding: 6px 8px;
+  margin-bottom: 8px;
+  line-height: 1.6;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.fn-output {
+  font-size: 12px;
+  color: #67c23a;
+  background: #f0f9eb;
+  border-radius: 4px;
+  padding: 5px 8px;
+  margin-bottom: 8px;
+  line-height: 1.5;
+}
+
+/* 对象数组（list[obj]）绑定编辑器 */
+.fn-obj-editor {
+  border: 1px dashed #e4e7ed;
+  border-radius: 4px;
+  padding: 8px;
+  background: #fff;
+}
+
+.fn-obj-row {
+  border: 1px solid #ebeef5;
+  border-radius: 4px;
+  padding: 6px 8px;
+  margin-bottom: 6px;
+  background: #fafafa;
+}
+
+.fn-obj-row-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.fn-obj-row-title {
+  font-size: 11px;
+  color: #909399;
+}
+
+.fn-obj-cells {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.fn-obj-cell {
+  flex: 1;
+  min-width: 90px;
+}
+
+.fn-obj-cell-label {
+  font-size: 11px;
+  color: #606266;
+  margin-bottom: 3px;
+}
+
+.fn-obj-empty {
+  font-size: 12px;
+  color: #c0c4cc;
+  padding: 4px 0;
+}
+
+.fn-tip-line {
+  font-size: 12px;
+  color: #909399;
+  margin: -4px 0 8px 80px;
+  line-height: 1.5;
+}
+
+.fn-bindings-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.fn-bind-row {
+  margin-bottom: 8px;
+}
+
+.fn-bind-row:last-child {
+  margin-bottom: 0;
+}
+
+.fn-bind-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.fn-bind-name {
+  font-size: 12px;
+  color: #606266;
+  font-weight: 500;
+}
+
+.fn-bind-code {
+  font-size: 11px;
+  color: #c0c4cc;
 }
 
 /* ---------- 底部导航 ---------- */

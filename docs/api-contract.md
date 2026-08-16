@@ -107,11 +107,28 @@ FunctionDefinition：
   "functionName": "rebateCalculator",
   "displayName": "阶梯返利核算",
   "type": "JAVA_SPI",
-  "description": "按阶梯档位核算返利",
+  "description": "按阶梯档位核算返利金额：读取事件参数 amountField（默认 orderAmount），按绑定参数 tiers 档位计算返利",
+  "output": "返回返利金额（数字，保留 2 位小数）",
+  "outputName": "rebateAmount",
   "className": "rebateCalculatorFunction",
   "script": "orderCount * 10 + checkinStreak * 5",
   "jarPath": "./data/functions/xxx.jar",
-  "params": [{ "code": "amountField", "name": "金额字段", "type": "STRING", "required": false, "description": "" }],
+  "params": [
+    { "code": "amountField", "name": "金额字段", "type": "STRING", "required": false, "description": "", "editable": false },
+    {
+      "code": "tiers",
+      "name": "阶梯档位",
+      "type": "LIST_OBJECT",
+      "required": true,
+      "description": "按格式新增档位行",
+      "editable": true,
+      "itemSchema": [
+        { "code": "min", "name": "最低金额", "type": "NUMBER", "required": true, "description": "" },
+        { "code": "max", "name": "最高金额", "type": "NUMBER", "required": false, "description": "留空表示上不封顶" },
+        { "code": "rate", "name": "返利比例", "type": "NUMBER", "required": true, "description": "0.05=5%" }
+      ]
+    }
+  ],
   "config": {},
   "testCases": [
     {
@@ -125,6 +142,11 @@ FunctionDefinition：
 }
 ```
 `type` ∈ JAVA_SPI | JAR | EXPRESSION
+- `output`：出参说明（函数结果的含义/类型，规则画布中展示给运营）
+- `outputName`：默认出参名（规则画布中的**固定别名，不可修改**，缺省=函数名；条件/动作以 `#{outputName}` 引用）
+- `params[]`：绑定参数 schema，`type` ∈ STRING | NUMBER | BOOLEAN | DATETIME | LIST | USER（用户 ID） | LIST_OBJECT（对象数组） | JSON；
+  `LIST_OBJECT` 需用 `itemSchema` 声明元素子字段（画布中按格式新增/填写，如阶梯档位 [{key,value}]）；
+  `editable=false` 的参数不在规则画布中展示赋值（由函数内部/默认值决定，加载旧规则时保留原值）
 - `testCases`：在线测试案例数组（函数管理弹窗一键填入入参），`{ name, eventParams, bindings, expect }`；注册/更新时随 body 一并提交，存储于 `t_function_definition.test_cases_json`
 
 ## 4 动作配置 `/api/actions`

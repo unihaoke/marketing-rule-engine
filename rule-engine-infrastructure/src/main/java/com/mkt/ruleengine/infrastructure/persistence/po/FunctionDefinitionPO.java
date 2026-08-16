@@ -22,6 +22,10 @@ public class FunctionDefinitionPO {
     /** JAVA_SPI / JAR / EXPRESSION */
     private String type;
     private String description;
+    /** 出参说明 */
+    private String output;
+    /** 默认出参名（画布固定别名） */
+    private String outputName;
     private String className;
     private String jarPath;
     private String script;

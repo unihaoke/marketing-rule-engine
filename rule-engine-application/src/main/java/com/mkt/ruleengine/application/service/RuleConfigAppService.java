@@ -35,19 +35,22 @@ public class RuleConfigAppService {
     private final ActionDefinitionRegistry actionDefinitionRegistry;
     private final FunctionRegistry functionRegistry;
     private final com.mkt.ruleengine.core.repository.ActionDefinitionRepository actionDefinitionRepository;
+    private final com.mkt.ruleengine.core.repository.FunctionDefinitionRepository functionDefinitionRepository;
 
     public RuleConfigAppService(RuleConfigRepository repository,
                                 JsonCodec jsonCodec,
                                 RuleSnapshotCache snapshotCache,
                                 ActionDefinitionRegistry actionDefinitionRegistry,
                                 FunctionRegistry functionRegistry,
-                                com.mkt.ruleengine.core.repository.ActionDefinitionRepository actionDefinitionRepository) {
+                                com.mkt.ruleengine.core.repository.ActionDefinitionRepository actionDefinitionRepository,
+                                com.mkt.ruleengine.core.repository.FunctionDefinitionRepository functionDefinitionRepository) {
         this.repository = repository;
         this.jsonCodec = jsonCodec;
         this.snapshotCache = snapshotCache;
         this.actionDefinitionRegistry = actionDefinitionRegistry;
         this.functionRegistry = functionRegistry;
         this.actionDefinitionRepository = actionDefinitionRepository;
+        this.functionDefinitionRepository = functionDefinitionRepository;
     }
 
     // ---------- 创建 / 编辑 ----------
@@ -228,7 +231,9 @@ public class RuleConfigAppService {
                 .max().orElse(0L) + 1;
     }
 
-    /** 发布前引用校验：动作已配置、函数已注册（缺失仅告警不阻断） */
+    /**
+     * 发布前引用校验：动作已配置、函数已注册、函数"画布可填且必填"的绑定参数已赋值（缺失仅告警不阻断）。
+     */
     private void validateReferences(RuleGroup group) {
         group.getActions().forEach(action -> {
             if (!actionDefinitionRegistry.exists(action.getActionCode())) {
@@ -238,7 +243,18 @@ public class RuleConfigAppService {
         group.getFunctions().forEach(fn -> {
             if (!functionRegistry.contains(fn.getFunctionName())) {
                 log.warn("rule {} references unregistered function: {}", group.getRuleCode(), fn.getFunctionName());
+                return;
             }
+            // 函数管理定义的"画布可填且必填"参数必须在绑定参数中赋值
+            functionDefinitionRepository.findByName(fn.getFunctionName()).ifPresent(def ->
+                    def.getParams().stream()
+                            .filter(p -> p.isEditable() && p.isRequired())
+                            .filter(p -> {
+                                Object v = fn.getBindings().get(p.getCode());
+                                return v == null || (v instanceof String s && s.isBlank());
+                            })
+                            .forEach(p -> log.warn("rule {} function {} missing required binding param: {}",
+                                    group.getRuleCode(), fn.getFunctionName(), p.getCode())));
         });
     }
 

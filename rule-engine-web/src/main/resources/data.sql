@@ -39,51 +39,61 @@ ON DUPLICATE KEY UPDATE id = id;
 
 -- ---------- 函数定义 ----------
 
-INSERT INTO t_function_definition (function_name, display_name, type, description, class_name, script, params_json, config_json, test_cases_json, enabled, version)
-VALUES ('consecutiveCheckinDays', '连续打卡天数计算', 'JAVA_SPI', '计算用户连续打卡天数（画像/事件/绑定参数）', 'consecutiveCheckinDaysFunction', NULL, '[]', NULL,
+INSERT INTO t_function_definition (function_name, display_name, type, description, output, output_name, class_name, script, params_json, config_json, test_cases_json, enabled, version)
+VALUES ('consecutiveCheckinDays', '连续打卡天数计算', 'JAVA_SPI', '计算用户连续打卡天数：优先取绑定/事件参数 checkinStreak，否则取用户画像 checkinStreak，缺省 0', '返回连续打卡天数（数字）', 'checkinStreak', 'consecutiveCheckinDaysFunction', NULL,
+        '[{"code":"checkinStreak","name":"连续打卡天数","type":"NUMBER","required":false,"description":"无绑定/事件值时默认取用户画像 checkinStreak，缺省 0","editable":true}]',
+        NULL,
         '[{"name":"事件参数取数","eventParams":{"checkinStreak":5},"bindings":{},"expect":"返回 5（事件参数优先于画像，当前画像为空）"},{"name":"无数据兜底","eventParams":{},"bindings":{},"expect":"返回 0（画像/事件/绑定均无 checkinStreak）"}]',
         1, 1)
 ON DUPLICATE KEY UPDATE id = id;
 
-INSERT INTO t_function_definition (function_name, display_name, type, description, class_name, script, params_json, config_json, test_cases_json, enabled, version)
-VALUES ('rebateCalculator', '阶梯返利核算', 'JAVA_SPI', '按阶梯档位核算返利金额，绑定参数 tiers 定义档位', 'rebateCalculatorFunction', NULL, '[]', NULL,
+INSERT INTO t_function_definition (function_name, display_name, type, description, output, output_name, class_name, script, params_json, config_json, test_cases_json, enabled, version)
+VALUES ('rebateCalculator', '阶梯返利核算', 'JAVA_SPI', '按阶梯档位核算返利金额：读取事件参数 amountField（默认 orderAmount），按绑定参数 tiers 档位计算返利', '返回返利金额（数字，保留 2 位小数）', 'rebateAmount', 'rebateCalculatorFunction', NULL,
+        '[{"code":"amountField","name":"金额字段","type":"STRING","required":false,"description":"参与返利核算的事件参数字段，默认 orderAmount","editable":false},{"code":"tiers","name":"阶梯档位","type":"LIST_OBJECT","required":true,"description":"按格式新增档位行：最低金额/最高金额/返利比例","editable":true,"itemSchema":[{"code":"min","name":"最低金额","type":"NUMBER","required":true,"description":"本档最低金额"},{"code":"max","name":"最高金额","type":"NUMBER","required":false,"description":"留空表示上不封顶"},{"code":"rate","name":"返利比例","type":"NUMBER","required":true,"description":"返利比例，如 0.05 表示 5%"}]}]',
+        NULL,
         '[{"name":"低档返利 2%","eventParams":{"orderAmount":300},"bindings":{"tiers":[{"min":100,"max":499,"rate":0.02},{"min":500,"max":null,"rate":0.05}]},"expect":"返回 6.00（300×2%）"},{"name":"高档返利 5%","eventParams":{"orderAmount":800},"bindings":{"tiers":[{"min":100,"max":499,"rate":0.02},{"min":500,"max":null,"rate":0.05}]},"expect":"返回 40.00（800×5%）"},{"name":"低于门槛","eventParams":{"orderAmount":50},"bindings":{"tiers":[{"min":100,"max":499,"rate":0.02},{"min":500,"max":null,"rate":0.05}]},"expect":"返回 0.00（未命中任何档位）"}]',
         1, 1)
 ON DUPLICATE KEY UPDATE id = id;
 
-INSERT INTO t_function_definition (function_name, display_name, type, description, class_name, script, params_json, config_json, test_cases_json, enabled, version)
-VALUES ('scoreCalculator', '活跃度积分计算', 'EXPRESSION', '根据用户画像计算活跃度得分：orderCount * 10 + checkinStreak * 5', NULL, 'orderCount * 10 + checkinStreak * 5',
-        '[{"code":"orderCount","name":"下单数","type":"NUMBER","required":false,"description":"用户画像字段"},{"code":"checkinStreak","name":"连续打卡","type":"NUMBER","required":false,"description":"用户画像字段"}]',
+INSERT INTO t_function_definition (function_name, display_name, type, description, output, output_name, class_name, script, params_json, config_json, test_cases_json, enabled, version)
+VALUES ('scoreCalculator', '活跃度积分计算', 'EXPRESSION', '根据用户画像计算活跃度得分：orderCount * 10 + checkinStreak * 5', '返回活跃度得分（数字）', 'score', NULL, 'orderCount * 10 + checkinStreak * 5',
+        '[{"code":"orderCount","name":"下单数","type":"NUMBER","required":false,"description":"用户画像字段","editable":true},{"code":"checkinStreak","name":"连续打卡","type":"NUMBER","required":false,"description":"用户画像字段","editable":true}]',
         NULL,
         '[{"name":"活跃度 5 单 3 连签","eventParams":{"orderCount":5,"checkinStreak":3},"bindings":{},"expect":"返回 65（5×10+3×5）"}]',
         1, 1)
 ON DUPLICATE KEY UPDATE id = id;
 
-INSERT INTO t_function_definition (function_name, display_name, type, description, class_name, script, params_json, config_json, test_cases_json, enabled, version)
+INSERT INTO t_function_definition (function_name, display_name, type, description, output, output_name, class_name, script, params_json, config_json, test_cases_json, enabled, version)
 VALUES ('tieredRewardCalculator', '阶梯奖励核算', 'JAVA_SPI',
-        '按档位 key 匹配返回奖励值（如连续签到阶梯：第1天1分、第2天2分、第3天4分…），绑定参数 tiers 定义档位 [{key,value}] 或 [{from,to,value}]，keyField 指定匹配字段',
+        '按档位 key 匹配返回奖励值（如连续签到阶梯：第1天1分、第2天2分、第3天4分…），绑定参数 keyField 指定匹配字段、tiers 定义档位、fallback 定义兜底',
+        '返回档位奖励值（数字），无匹配返回 fallback',
+        'rewardPoints',
         'tieredRewardCalculatorFunction', NULL,
-        '[{"code":"keyField","name":"匹配字段","type":"STRING","required":false,"description":"默认 checkinStreak"},{"code":"tiers","name":"档位","type":"JSON","required":true,"description":"[{key,value}] 或 [{from,to,value}]"},{"code":"fallback","name":"兜底值","type":"NUMBER","required":false,"description":"无匹配时返回，默认 0"}]',
+        '[{"code":"keyField","name":"匹配字段","type":"STRING","required":false,"description":"取哪里的值匹配档位，默认 checkinStreak","editable":true},{"code":"tiers","name":"档位","type":"LIST_OBJECT","required":true,"description":"按格式新增档位行：键→奖励值","editable":true,"itemSchema":[{"code":"key","name":"键（天数/值）","type":"NUMBER","required":true,"description":"档位匹配键，如第 1 天填 1"},{"code":"value","name":"奖励值","type":"NUMBER","required":true,"description":"该档位奖励，如第 1 天 1 分"}]},{"code":"fallback","name":"兜底值","type":"NUMBER","required":false,"description":"无匹配时返回，默认 0","editable":true}]',
         NULL,
         '[{"name":"签到第3天","eventParams":{"checkinStreak":3},"bindings":{"keyField":"checkinStreak","tiers":[{"key":1,"value":1},{"key":2,"value":2},{"key":3,"value":4},{"key":4,"value":8},{"key":5,"value":16}]},"expect":"返回 4（第3天奖励翻倍）"},{"name":"超档兜底","eventParams":{"checkinStreak":9},"bindings":{"keyField":"checkinStreak","tiers":[{"key":1,"value":1},{"key":2,"value":2},{"key":3,"value":4},{"key":4,"value":8},{"key":5,"value":16}]},"expect":"返回 0（超出档位，fallback 默认 0）"},{"name":"区间档位","eventParams":{"orderAmount":800},"bindings":{"keyField":"orderAmount","tiers":[{"from":100,"to":499,"value":1},{"from":500,"to":null,"value":2}]},"expect":"返回 2（命中 from 500 上不封顶档）"}]',
         1, 1)
 ON DUPLICATE KEY UPDATE id = id;
 
-INSERT INTO t_function_definition (function_name, display_name, type, description, class_name, script, params_json, config_json, test_cases_json, enabled, version)
+INSERT INTO t_function_definition (function_name, display_name, type, description, output, output_name, class_name, script, params_json, config_json, test_cases_json, enabled, version)
 VALUES ('signInDays', '签到天数计算', 'JAVA_SPI',
         '基于 t_engine_log 真实签到历史按天去重计算：mode=streak 连续签到天数（默认）/ mode=total 累计签到天数；本次当日首次签到计入',
+        '返回签到天数（数字）：streak=连续 / total=累计',
+        'signInDays',
         'signInDaysFunction', NULL,
-        '[{"code":"eventCode","name":"签到事件","type":"STRING","required":false,"description":"默认 SIGN_IN"},{"code":"mode","name":"模式","type":"STRING","required":false,"description":"streak 连续 / total 累计"}]',
+        '[{"code":"eventCode","name":"签到事件","type":"STRING","required":false,"description":"默认 SIGN_IN","editable":false},{"code":"mode","name":"模式","type":"STRING","required":false,"description":"streak 连续 / total 累计","editable":true}]',
         NULL,
         '[{"name":"累计天数 total","eventParams":{},"bindings":{"mode":"total","eventCode":"SIGN_IN"},"expect":"返回 test-user 在 t_engine_log 的累计签到天数（当日首次签到计入，无历史时首次为 1）"},{"name":"连续天数 streak","eventParams":{},"bindings":{"mode":"streak","eventCode":"SIGN_IN"},"expect":"返回 test-user 最近连续签到天数（无历史时首次为 1）"}]',
         1, 1)
 ON DUPLICATE KEY UPDATE id = id;
 
-INSERT INTO t_function_definition (function_name, display_name, type, description, class_name, script, params_json, config_json, test_cases_json, enabled, version)
+INSERT INTO t_function_definition (function_name, display_name, type, description, output, output_name, class_name, script, params_json, config_json, test_cases_json, enabled, version)
 VALUES ('todaySignedIn', '今日是否已签到', 'JAVA_SPI',
         '基于 t_engine_log 判断今日是否已有签到记录（不含本次触发），用于每日签到限发一次',
+        '返回是否已签到（布尔值）',
+        'todaySignedIn',
         'todaySignedInFunction', NULL,
-        '[{"code":"eventCode","name":"签到事件","type":"STRING","required":false,"description":"默认 SIGN_IN"}]',
+        '[{"code":"eventCode","name":"签到事件","type":"STRING","required":false,"description":"默认 SIGN_IN","editable":false}]',
         NULL,
         '[{"name":"今日未签到","eventParams":{},"bindings":{"eventCode":"SIGN_IN"},"expect":"返回 false（test-user 今日无 SIGN_IN 日志时；已签到时为 true）"}]',
         1, 1)
@@ -147,14 +157,14 @@ ON DUPLICATE KEY UPDATE id = id;
 -- 3.1 每日签到-固定积分（基于 t_engine_log 今日首次签到）
 INSERT INTO t_rule_group (rule_code, rule_name, event_code, description, priority, enabled, content_json, created_by)
 VALUES ('SIGN_IN_DAILY_FIXED', '每日签到-固定积分', 'SIGN_IN', '每日签到获取固定积分（今日首次签到发放，同日不重复）', 31, 1,
-        '{"ruleName":"每日签到-固定积分","description":"每日签到获取固定积分（今日首次签到发放，同日不重复）","conditionTree":{"nodeType":"LOGIC","logic":"AND","children":[{"nodeType":"LEAF","field":"todaySigned","operator":"EQUALS","value":false,"valueType":"BOOLEAN","expression":null,"not":false}]},"functions":[{"functionName":"todaySignedIn","alias":"todaySigned","bindings":{}}],"actions":[{"actionCode":"ADD_POINTS","params":{"reason":"每日签到固定积分","points":10},"async":false}],"gray":{"enabled":false,"strategy":"OFF","percent":0,"channels":[],"bucketKey":"userId"}}',
+        '{"ruleName":"每日签到-固定积分","description":"每日签到获取固定积分（今日首次签到发放，同日不重复）","conditionTree":{"nodeType":"LOGIC","logic":"AND","children":[{"nodeType":"LEAF","field":"todaySignedIn","operator":"EQUALS","value":false,"valueType":"BOOLEAN","expression":null,"not":false}]},"functions":[{"functionName":"todaySignedIn","alias":"todaySignedIn","bindings":{}}],"actions":[{"actionCode":"ADD_POINTS","params":{"reason":"每日签到固定积分","points":10},"async":false}],"gray":{"enabled":false,"strategy":"OFF","percent":0,"channels":[],"bucketKey":"userId"}}',
         'system')
 ON DUPLICATE KEY UPDATE id = id;
 
 -- 3.2 签到新人-阶段积分（基于真实累计签到天数：第1天1分、第2天2分、第3天4分、第4天8分、第5天16分，最多5天活动结束）
 INSERT INTO t_rule_group (rule_code, rule_name, event_code, description, priority, enabled, content_json, created_by)
 VALUES ('SIGN_IN_STAGE_REWARD', '签到新人-阶段积分', 'SIGN_IN', '第1天1分、第2天2分、第3天4分、第4天8分、第5天16分，累计满5天后活动对该用户结束', 32, 1,
-        '{"ruleName":"签到新人-阶段积分","description":"第1天1分、第2天2分、第3天4分、第4天8分、第5天16分，累计满5天后活动对该用户结束","conditionTree":{"nodeType":"LOGIC","logic":"AND","children":[{"nodeType":"LEAF","field":"signInTotal","operator":"GTE","value":1,"valueType":"NUMBER","expression":null,"not":false},{"nodeType":"LEAF","field":"signInTotal","operator":"LTE","value":5,"valueType":"NUMBER","expression":null,"not":false},{"nodeType":"LEAF","field":"todaySigned","operator":"EQUALS","value":false,"valueType":"BOOLEAN","expression":null,"not":false}]},"functions":[{"functionName":"signInDays","alias":"signInTotal","bindings":{"mode":"total","eventCode":"SIGN_IN"}},{"functionName":"tieredRewardCalculator","alias":"rewardPoints","bindings":{"keyField":"signInTotal","tiers":[{"key":1,"value":1},{"key":2,"value":2},{"key":3,"value":4},{"key":4,"value":8},{"key":5,"value":16}]}},{"functionName":"todaySignedIn","alias":"todaySigned","bindings":{}}],"actions":[{"actionCode":"ADD_POINTS","params":{"reason":"阶段签到奖励","points":"#{rewardPoints}"},"async":false}],"gray":{"enabled":false,"strategy":"OFF","percent":0,"channels":[],"bucketKey":"userId"}}',
+        '{"ruleName":"签到新人-阶段积分","description":"第1天1分、第2天2分、第3天4分、第4天8分、第5天16分，累计满5天后活动对该用户结束","conditionTree":{"nodeType":"LOGIC","logic":"AND","children":[{"nodeType":"LEAF","field":"signInDays","operator":"GTE","value":1,"valueType":"NUMBER","expression":null,"not":false},{"nodeType":"LEAF","field":"signInDays","operator":"LTE","value":5,"valueType":"NUMBER","expression":null,"not":false},{"nodeType":"LEAF","field":"todaySignedIn","operator":"EQUALS","value":false,"valueType":"BOOLEAN","expression":null,"not":false}]},"functions":[{"functionName":"signInDays","alias":"signInDays","bindings":{"mode":"total","eventCode":"SIGN_IN"}},{"functionName":"tieredRewardCalculator","alias":"rewardPoints","bindings":{"keyField":"signInDays","tiers":[{"key":1,"value":1},{"key":2,"value":2},{"key":3,"value":4},{"key":4,"value":8},{"key":5,"value":16}]}},{"functionName":"todaySignedIn","alias":"todaySignedIn","bindings":{}}],"actions":[{"actionCode":"ADD_POINTS","params":{"reason":"阶段签到奖励","points":"#{rewardPoints}"},"async":false}],"gray":{"enabled":false,"strategy":"OFF","percent":0,"channels":[],"bucketKey":"userId"}}',
         'system')
 ON DUPLICATE KEY UPDATE id = id;
 
@@ -201,13 +211,13 @@ ON DUPLICATE KEY UPDATE id = id;
 
 INSERT INTO t_rule_version (rule_code, version_no, status, content_json, change_log, published_by, published_at)
 VALUES ('SIGN_IN_DAILY_FIXED', 1, 'PUBLISHED',
-        '{"ruleName":"每日签到-固定积分","description":"每日签到获取固定积分（今日首次签到发放，同日不重复）","conditionTree":{"nodeType":"LOGIC","logic":"AND","children":[{"nodeType":"LEAF","field":"todaySigned","operator":"EQUALS","value":false,"valueType":"BOOLEAN","expression":null,"not":false}]},"functions":[{"functionName":"todaySignedIn","alias":"todaySigned","bindings":{}}],"actions":[{"actionCode":"ADD_POINTS","params":{"reason":"每日签到固定积分","points":10},"async":false}],"gray":{"enabled":false,"strategy":"OFF","percent":0,"channels":[],"bucketKey":"userId"}}',
+        '{"ruleName":"每日签到-固定积分","description":"每日签到获取固定积分（今日首次签到发放，同日不重复）","conditionTree":{"nodeType":"LOGIC","logic":"AND","children":[{"nodeType":"LEAF","field":"todaySignedIn","operator":"EQUALS","value":false,"valueType":"BOOLEAN","expression":null,"not":false}]},"functions":[{"functionName":"todaySignedIn","alias":"todaySignedIn","bindings":{}}],"actions":[{"actionCode":"ADD_POINTS","params":{"reason":"每日签到固定积分","points":10},"async":false}],"gray":{"enabled":false,"strategy":"OFF","percent":0,"channels":[],"bucketKey":"userId"}}',
         '初始化发布', 'system', CURRENT_TIMESTAMP)
 ON DUPLICATE KEY UPDATE id = id;
 
 INSERT INTO t_rule_version (rule_code, version_no, status, content_json, change_log, published_by, published_at)
 VALUES ('SIGN_IN_STAGE_REWARD', 1, 'PUBLISHED',
-        '{"ruleName":"签到新人-阶段积分","description":"第1天1分、第2天2分、第3天4分、第4天8分、第5天16分，累计满5天后活动对该用户结束","conditionTree":{"nodeType":"LOGIC","logic":"AND","children":[{"nodeType":"LEAF","field":"signInTotal","operator":"GTE","value":1,"valueType":"NUMBER","expression":null,"not":false},{"nodeType":"LEAF","field":"signInTotal","operator":"LTE","value":5,"valueType":"NUMBER","expression":null,"not":false},{"nodeType":"LEAF","field":"todaySigned","operator":"EQUALS","value":false,"valueType":"BOOLEAN","expression":null,"not":false}]},"functions":[{"functionName":"signInDays","alias":"signInTotal","bindings":{"mode":"total","eventCode":"SIGN_IN"}},{"functionName":"tieredRewardCalculator","alias":"rewardPoints","bindings":{"keyField":"signInTotal","tiers":[{"key":1,"value":1},{"key":2,"value":2},{"key":3,"value":4},{"key":4,"value":8},{"key":5,"value":16}]}},{"functionName":"todaySignedIn","alias":"todaySigned","bindings":{}}],"actions":[{"actionCode":"ADD_POINTS","params":{"reason":"阶段签到奖励","points":"#{rewardPoints}"},"async":false}],"gray":{"enabled":false,"strategy":"OFF","percent":0,"channels":[],"bucketKey":"userId"}}',
+        '{"ruleName":"签到新人-阶段积分","description":"第1天1分、第2天2分、第3天4分、第4天8分、第5天16分，累计满5天后活动对该用户结束","conditionTree":{"nodeType":"LOGIC","logic":"AND","children":[{"nodeType":"LEAF","field":"signInDays","operator":"GTE","value":1,"valueType":"NUMBER","expression":null,"not":false},{"nodeType":"LEAF","field":"signInDays","operator":"LTE","value":5,"valueType":"NUMBER","expression":null,"not":false},{"nodeType":"LEAF","field":"todaySignedIn","operator":"EQUALS","value":false,"valueType":"BOOLEAN","expression":null,"not":false}]},"functions":[{"functionName":"signInDays","alias":"signInDays","bindings":{"mode":"total","eventCode":"SIGN_IN"}},{"functionName":"tieredRewardCalculator","alias":"rewardPoints","bindings":{"keyField":"signInDays","tiers":[{"key":1,"value":1},{"key":2,"value":2},{"key":3,"value":4},{"key":4,"value":8},{"key":5,"value":16}]}},{"functionName":"todaySignedIn","alias":"todaySignedIn","bindings":{}}],"actions":[{"actionCode":"ADD_POINTS","params":{"reason":"阶段签到奖励","points":"#{rewardPoints}"},"async":false}],"gray":{"enabled":false,"strategy":"OFF","percent":0,"channels":[],"bucketKey":"userId"}}',
         '初始化发布', 'system', CURRENT_TIMESTAMP)
 ON DUPLICATE KEY UPDATE id = id;
 
