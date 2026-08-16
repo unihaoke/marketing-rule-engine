@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<flow>
+    <!--
+      规则引擎四阶段责任链的 LiteFlow EL 编排：
+      事件归一化 → 函数增强 → 规则匹配 → 动作执行
+      相比默认内存责任链，可享受 LiteFlow 的规则热刷新、组件隔离、可观测等能力。
+      启用方式见 docs/qlexpress-liteflow.md。
+    -->
+    <chain name="engineChain">
+        THEN(
+            normalizeStage,
+            enhanceStage,
+            matchStage,
+            actionStage
+        )
+    </chain>
+</flow>

@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.mkt.ruleengine</groupId>
+        <artifactId>marketing-rule-engine</artifactId>
+        <version>1.0.0</version>
+    </parent>
+
+    <artifactId>rule-engine-application</artifactId>
+    <name>rule-engine-application</name>
+    <description>应用服务：事件管理 / 规则配置 / 函数注册 / 动作配置 / 版本灰度 / 运行时触发</description>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.mkt.ruleengine</groupId>
+            <artifactId>rule-engine-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-context</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-tx</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <scope>provided</scope>
+        </dependency>
+    </dependencies>
+</project>

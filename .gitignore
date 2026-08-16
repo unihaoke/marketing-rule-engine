@@ -1,0 +1,28 @@
+# Maven
+target/
+*.class
+*.jar
+!**/src/main/resources/**/*.jar
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.settings/
+.classpath
+.project
+
+# Node / frontend
+node_modules/
+dist/
+rule-engine-admin-ui/node_modules/
+rule-engine-admin-ui/dist/
+
+# Runtime data
+data/
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db

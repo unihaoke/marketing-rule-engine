@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.2.5</version>
+        <relativePath/>
+    </parent>
+
+    <groupId>com.mkt.ruleengine</groupId>
+    <artifactId>marketing-rule-engine</artifactId>
+    <version>1.0.0</version>
+    <packaging>pom</packaging>
+    <name>marketing-rule-engine</name>
+    <description>通用营销规则引擎框架：事件触发 -&gt; 规则匹配 -&gt; 自定义函数增强 -&gt; 营销动作执行</description>
+
+    <modules>
+        <module>rule-engine-core</module>
+        <module>rule-engine-infrastructure</module>
+        <module>rule-engine-application</module>
+        <module>rule-engine-web</module>
+    </modules>
+
+    <properties>
+        <java.version>21</java.version>
+        <maven.compiler.source>21</maven.compiler.source>
+        <maven.compiler.target>21</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <mybatis-plus.version>3.5.5</mybatis-plus.version>
+        <h2.version>2.3.232</h2.version>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <!-- 自有模块 -->
+            <dependency>
+                <groupId>com.mkt.ruleengine</groupId>
+                <artifactId>rule-engine-core</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.mkt.ruleengine</groupId>
+                <artifactId>rule-engine-infrastructure</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.mkt.ruleengine</groupId>
+                <artifactId>rule-engine-application</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <!-- 第三方 -->
+            <dependency>
+                <groupId>com.baomidou</groupId>
+                <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
+                <version>${mybatis-plus.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.h2database</groupId>
+                <artifactId>h2</artifactId>
+                <version>${h2.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <!--
+      可选扩展（默认不参与构建，需要网络下载依赖时启用）：
+        mvn -Pqlexpress  install   # 引入 QLExpress 动态表达式引擎
+        mvn -Pliteflow   install   # 引入 LiteFlow 流程编排
+    -->
+    <profiles>
+        <profile>
+            <id>qlexpress</id>
+            <modules>
+                <module>rule-engine-ext-qlexpress</module>
+            </modules>
+        </profile>
+        <profile>
+            <id>liteflow</id>
+            <modules>
+                <module>rule-engine-ext-liteflow</module>
+            </modules>
+        </profile>
+    </profiles>
+
+    <build>
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-maven-plugin</artifactId>
+                    <configuration>
+                        <mainClass>com.mkt.ruleengine.web.RuleEngineWebApplication</mainClass>
+                    </configuration>
+                </plugin>
+                <!-- 沙箱环境不允许 fork 子进程（CreatePipe 受限），测试改为进程内执行 -->
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-surefire-plugin</artifactId>
+                    <configuration>
+                        <forkCount>0</forkCount>
+                    </configuration>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+    </build>
+</project>

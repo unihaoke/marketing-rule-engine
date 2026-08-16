@@ -1,0 +1,35 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: marketing-rule-engine
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    # createDatabaseIfNotExist=true：库不存在时驱动自动创建（需账号具备建库权限）
+    url: jdbc:mysql://127.0.0.1:3306/rule_engine?createDatabaseIfNotExist=true&useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    username: root
+    password: tiger
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema.sql
+      data-locations: classpath:data.sql
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+
+logging:
+  level:
+    com.mkt.ruleengine: info
+    com.mkt.ruleengine.infrastructure.persistence.mapper: warn
+
+rule-engine:
+  # 严格事件校验：未在事件管理中定义/停用的事件拒绝受理
+  strict-event-validation: true
+  # 上传函数 Jar 存储目录
+  function-jar-dir: ./data/functions
+  cache:
+    # 热更新轮询间隔
+    poll-interval-ms: 5000

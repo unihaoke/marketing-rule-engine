@@ -1,0 +1,17 @@
+# 测试环境：使用独立 MySQL 库 rule_engine_test（驱动自动建库），与生产同一份 schema.sql / data.sql
+# 注意：同名 application.yml 会整体遮蔽主配置，因此测试所需属性需在此完整声明
+spring:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://127.0.0.1:3306/rule_engine_test?createDatabaseIfNotExist=true&useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    username: root
+    password: tiger
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema.sql
+      data-locations: classpath:data.sql
+
+rule-engine:
+  strict-event-validation: true
+  function-jar-dir: ./target/test-functions
