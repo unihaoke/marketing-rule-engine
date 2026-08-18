@@ -7,9 +7,10 @@ spring:
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
     # createDatabaseIfNotExist=true：库不存在时驱动自动创建（需账号具备建库权限）
-    url: jdbc:mysql://127.0.0.1:3306/rule_engine?createDatabaseIfNotExist=true&useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
-    username: root
-    password: tiger
+    # 数据库连接参数支持环境变量覆盖（默认值与本地开发一致），便于 Docker / K8s 等容器化部署
+    url: jdbc:mysql://${DB_HOST:127.0.0.1}:${DB_PORT:3306}/${DB_NAME:rule_engine}?createDatabaseIfNotExist=true&useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:tiger}
   sql:
     init:
       mode: always

@@ -1,0 +1,25 @@
+# 通用排除
+.git
+.gitignore
+.idea
+.vscode
+*.iml
+*.log
+.DS_Store
+
+# 构建产物
+**/target/
+**/node_modules/
+**/dist/
+**/dist-ssr/
+
+# 前端项目内的 Dockerfile 之外的构建文件已在各自 .dockerignore 排除
+# 此处仅排除根目录构建上下文无关内容
+
+# 数据与文档（部署后由容器自行初始化 schema/data.sql）
+docs/
+sql/
+data/
+
+# 已生成的 jar
+*.jar

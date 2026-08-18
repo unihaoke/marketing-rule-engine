@@ -19,6 +19,37 @@
 | 版本&灰度 | 版本回溯、按渠道/用户分桶灰度开关、上下线，热更新秒级生效；列表展示最新版本号 |
 | 运行时 | 高并发事件吞吐（本地缓存 + 纯内存匹配 + 动作异步化 + 幂等去重）；执行日志/动作明细/增强属性全量落 MySQL，**统计报表（ECharts）**与吞吐统计实时数据库聚合 |
 
+## 界面预览
+
+管理后台实际页面截图（图片位于 `docs/images/`）：
+
+<table>
+  <tr>
+    <td width="50%" align="center"><b>概览 · 统计报表（ECharts 实时聚合 MySQL）</b></td>
+    <td width="50%" align="center"><b>事件管理 · 入参 schema 编辑</b></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/images/概览.png" alt="概览" width="100%"/></td>
+    <td align="center"><img src="docs/images/编辑事件.png" alt="编辑事件" width="100%"/></td>
+  </tr>
+  <tr>
+    <td width="50%" align="center"><b>规则画布 · 条件树 + 函数 + 动作分步向导</b></td>
+    <td width="50%" align="center"><b>自定义函数 · 在线编辑 + 一键测试</b></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/images/规则画布.png" alt="规则画布" width="100%"/></td>
+    <td align="center"><img src="docs/images/函数编辑.png" alt="函数编辑" width="100%"/></td>
+  </tr>
+  <tr>
+    <td width="50%" align="center"><b>动作配置 · 模板列表</b></td>
+    <td width="50%" align="center"><b>动作编辑 · 参数默认值 + 前端展示开关</b></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/images/动作配置.png" alt="动作配置" width="100%"/></td>
+    <td align="center"><img src="docs/images/动作编辑.png" alt="动作编辑" width="100%"/></td>
+  </tr>
+</table>
+
 ## 快速开始
 
 ```bash
@@ -50,6 +81,59 @@ npm run dev        # http://localhost:5173，/api 已代理到 8080
 > 数据全部存储于 MySQL：数据库连接参数在 `rule-engine-web/src/main/resources/application.yml` 的 `spring.datasource.*` 中配置；
 > 吞吐统计/报表/日志均实时从数据库聚合查询；测试环境使用独立库 `rule_engine_test`（驱动自动创建）执行同一份 `schema.sql` / `data.sql`。
 
+## Docker 部署（一键编排）
+
+提供 `docker-compose.yml` 一键拉起 **MySQL 8 + 后端 Spring Boot + 前端 Vue3/Nginx** 三服务，无需本机预装 Maven / Node / MySQL。
+
+```bash
+# 在项目根目录执行
+docker compose up -d --build
+# 首次构建需联网拉取镜像 + Maven 依赖 + npm 依赖，约 5-10 分钟
+# 完成后：
+#   - 前端  http://localhost          （Nginx 静态托管 + /api 反代到后端）
+#   - 后端  http://localhost:8080     （REST API）
+#   - MySQL localhost:3306           （root / 默认密码 tiger）
+```
+
+启动顺序：`mysql` 健康检查通过 → `rule-engine-web` 自动建库建表 + 执行 `schema.sql` / `data.sql`（幂等）→ `rule-engine-admin-ui` 启动 Nginx。
+
+常用命令：
+
+```bash
+docker compose ps                 # 查看服务状态
+docker compose logs -f rule-engine-web   # 跟随后端日志
+docker compose down               # 停止并移除容器（数据卷保留）
+docker compose down -v            # 同时清空 MySQL 数据卷（彻底重置）
+docker compose up -d --build rule-engine-web   # 仅重建并重启后端
+```
+
+环境变量覆盖（在根目录 `.env` 文件或 `export` 设置均可）：
+
+| 变量 | 默认值 | 说明 |
+|---|---|---|
+| `MYSQL_ROOT_PASSWORD` | tiger | MySQL root 密码 |
+| `MYSQL_DATABASE` | rule_engine | 业务库名 |
+| `MYSQL_PORT` | 3306 | 宿主机映射的 MySQL 端口 |
+| `WEB_PORT` | 8080 | 后端宿主机端口 |
+| `UI_PORT` | 80 | 前端宿主机端口 |
+| `JAVA_OPTS` | （空） | 后端 JVM 参数，如 `-Xms512m -Xmx1024m` |
+
+示例 `.env`：
+
+```
+MYSQL_ROOT_PASSWORD=your_pwd_here
+WEB_PORT=18080
+UI_PORT=8080
+JAVA_OPTS=-Xms512m -Xmx1024m
+```
+
+部署产物：
+
+- 上传的函数 Jar 持久化到宿主机 `./data/functions`（与 `application.yml` 的 `rule-engine.function-jar-dir` 对应）
+- MySQL 数据持久化到 docker 卷 `mysql_data`
+
+> 本地开发可继续使用 `mvn -o -llr package` + `java -jar` + `npm run dev` 的原生方式（见"快速开始"）；`application.yml` 的数据库连接已支持 `${DB_HOST}` / `${DB_USERNAME}` / `${DB_PASSWORD}` 等环境变量覆盖，默认值与本地一致，互不冲突。
+
 ## 模块结构
 
 ```
@@ -60,8 +144,11 @@ marketing-rule-engine/
 ├── rule-engine-web/            接口层：SpringBoot 启动、REST API、MySQL 初始化 SQL（schema/data）、集成测试
 ├── rule-engine-ext-qlexpress/  [可选] QLExpress 表达式引擎适配（mvn -Pqlexpress）
 ├── rule-engine-ext-liteflow/   [可选] LiteFlow 流程编排适配（mvn -Pliteflow）
-├── rule-engine-admin-ui/       Vue3 管理前端源码
-└── docs/                       架构 / 设计模式 / 场景 / API 契约 / 扩展文档
+├── rule-engine-admin-ui/       Vue3 管理前端源码（含 Dockerfile / nginx.conf）
+├── docs/                       架构 / 设计模式 / 场景 / API 契约 / 扩展文档
+├── docker-compose.yml          一键编排：MySQL 8 + 后端 + 前端 Nginx
+├── rule-engine-web/Dockerfile 后端多阶段镜像（Maven 构建 → JRE 运行）
+└── .dockerignore               Docker 构建上下文排除项
 ```
 
 ## 核心链路
